@@ -2,12 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use strum::IntoEnumIterator;
 
-use crate::{
-    student::Student,
-    subject::{self, Subject},
-};
+use crate::{student::Student, subject::Subject};
 
-pub fn group(students: &Vec<Student>) {
+pub fn group(students: &Vec<Student>) -> HashMap<Subject, HashSet<Subject>> {
     let mut subjects: HashMap<Subject, HashSet<usize>> = HashMap::new();
     for subject in Subject::iter() {
         subjects.insert(
@@ -38,5 +35,5 @@ pub fn group(students: &Vec<Student>) {
         }
     }
 
-    dbg!(groups);
+    groups
 }
