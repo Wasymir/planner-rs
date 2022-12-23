@@ -1,10 +1,10 @@
-use std::hash::{Hash, Hasher};
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 
+use crate::subject::{Subject, SUBJECTS};
 use derive_new::new;
-
-use crate::subject::Subject;
+use lazy_static::lazy_static;
 
 #[derive(Debug, new, PartialEq, Eq, Clone)]
 pub struct Student {
@@ -13,7 +13,7 @@ pub struct Student {
     pub subjects: Vec<Subject>,
 }
 
-//Wydajniejsza funkcja hashująca, która bazuje jedynie na id ucznia
+// Better hashing function that uses only id field
 impl Hash for Student {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
@@ -27,7 +27,14 @@ lazy_static! {
     };
 }
 
-pub fn init_students(students: &Vec<Student>) {
+pub fn init(students: &Vec<Student>) {
     let mut students_static = STUDENTS.lock().unwrap();
-    students.iter().map(|student| students_static.insert(student.id, student.clone())).count();
+    students
+        .iter()
+        .map(|student| students_static.insert(student.id, student.clone()))
+        .count();
+
+    // accessing SUBJECTS in order to initialize them  
+    
+    SUBJECTS.lock();
 }
