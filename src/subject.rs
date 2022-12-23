@@ -1,7 +1,7 @@
-use strum::{EnumIter, EnumString, ToString, IntoEnumIterator};
-use std::collections::{HashMap, HashSet};
 use crate::student::*;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
+use strum::{EnumIter, EnumString, IntoEnumIterator, ToString};
 
 #[derive(EnumIter, PartialEq, Eq, Clone, Copy, Debug, Hash, EnumString, ToString)]
 pub enum Subject {
@@ -51,26 +51,24 @@ impl Subject {
 }
 
 lazy_static! {
+
+
     pub static ref SUBJECTS: Mutex<HashMap<Subject, HashSet<usize>>> = {
-        let subjects = HashMap::new();
+        let students = STUDENTS.lock().unwrap();
+        let mut subjects = HashMap::new();
+        for subject in Subject::iter() {
+            let set = HashSet::from_iter(
+                students.values()
+                    .filter(|s| s.subjects.contains(&subject))
+                    .map(|s| s.id),
+            );
+
+            // if there are no students that have chosen this subject, it's not added to list
+            if !set.is_empty() {
+                subjects.insert(subject,set);
+            }
+        }
+
         subjects.into()
     };
-}
-
-pub fn init_subjects() {
-    let students = STUDENTS.lock().unwrap();
-    let mut subjects = SUBJECTS.lock().unwrap();
-    for subject in Subject::iter() {
-        let students_iter = students.values();
-        let set = HashSet::from_iter(
-            students_iter
-                .filter(|s| s.subjects.contains(&subject))
-                .map(|s| s.id),
-        );
-        
-        //jeżeli nie ma uczniów, którzy wybrali ten przedmiot, wtedy go nie dodajemy na listę
-        if !set.is_empty() {
-            subjects.insert(subject,set);
-        }
-    }
 }
