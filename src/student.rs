@@ -1,8 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 
-use crate::subject::{Subject, SUBJECTS};
+use crate::subject::Subject;
 use derive_new::new;
 use lazy_static::lazy_static;
 
@@ -33,8 +33,4 @@ pub fn init(students: &Vec<Student>) {
         .iter()
         .map(|student| students_static.insert(student.id, student.clone()))
         .count();
-
-    // accessing SUBJECTS in order to initialize them  
-    
-    SUBJECTS.lock();
 }

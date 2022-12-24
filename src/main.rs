@@ -1,5 +1,4 @@
 use crate::student::*;
-use crate::subject::*;
 use group::group;
 use student::Student;
 use subject::Subject::*;
@@ -7,12 +6,9 @@ use subject::Subject::*;
 #[macro_use]
 extern crate lazy_static;
 
-mod graphs;
 mod group;
 mod student;
 mod subject;
-
-pub use graphs::graph::Graph;
 
 fn main() {
     let students = vec![

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use strum::{EnumIter, EnumString, IntoEnumIterator, ToString};
 
-#[derive(EnumIter, PartialEq, Eq, Clone, Copy, Debug, Hash, EnumString, ToString)]
+#[derive(PartialOrd, Ord, EnumIter, PartialEq, Eq, Clone, Copy, Debug, Hash, EnumString, ToString)]
 pub enum Subject {
     PolishALiteratureHL,
     PolishALiteratureSL,
