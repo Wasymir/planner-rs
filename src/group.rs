@@ -2,19 +2,34 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display};
 use std::sync::MutexGuard;
 use std::hash::{Hash, Hasher};
+use std::cmp::Ordering;
 
 use derive_new::new;
 
-use petgraph::{graphmap::GraphMap,Undirected};
+use petgraph::Direction::Incoming;
+use petgraph::{Undirected,Directed};
+use petgraph::{graphmap::GraphMap,graph::{Graph,NodeIndex,EdgeIndex},visit::EdgeRef};
 
 use crate::{student::*, subject::*};
 
-#[derive(Debug, Eq, new, Clone)]
+#[derive(Debug, Eq, new)]
 pub struct Group {
     pub id: usize,
     pub subjects: HashSet<Subject>,
     pub students: HashSet<usize>,
     pub perfect: bool,
+}
+
+impl PartialOrd for Group {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Group {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
 }
 
 // A compare function which takes only subjects into account.
@@ -87,7 +102,7 @@ fn recursive_construction(graph: &mut GraphMap<Subject,usize,Undirected>, curren
     }
 }
 
-pub fn group() -> HashSet<Group> {
+pub fn group() -> Vec<Group> {
     let subjects = SUBJECTS.lock().unwrap();
     // Graph creation
     let mut graph: GraphMap<Subject,usize,Undirected> = GraphMap::new();
@@ -111,8 +126,129 @@ pub fn group() -> HashSet<Group> {
     // Creating groups based on the graph representation of subjects
     recursive_construction(&mut graph, &mut HashSet::new(), &subjects, STUDENTS.lock().unwrap().len(), &mut groups);
 
-    // Printing the result for testing and debugging purposes
-    println!("{:?}", groups);
+    let mut group_vec: Vec<Group> = Vec::from_iter(groups);
+    group_vec.sort();
 
-    groups
+    group_vec
+}
+
+/*
+ This struct represents the relation between groups. In particular, it can be
+ used to derive whether the students of a specific group also belong to another one.
+ Putting groups from a path of the graph representing such occurances onto the timetable
+ ensures that every single student who comes to school doesn't waste their time while others
+ have lessons. On top of that placing groups in reverse order from a path connected to the
+ one which we have just put also guarantees that to be the case.
+*/
+
+#[derive(Debug)]
+pub struct GroupRelation {
+    pub graph: Graph<usize,usize,Directed,u32>,
+    pub groups: Vec<Group>,
+}
+
+impl Display for GroupRelation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "GroupRelation {{ groups: {:?}, graph: {:?} }}", self.groups, self.graph)
+    }
+}
+
+impl GroupRelation {
+    pub fn new(groups: Vec<Group>) -> GroupRelation {
+        let mut graph: Graph<usize,usize,Directed,u32> = Graph::new();
+        for i in 0..groups.len() {
+            graph.add_node(0);
+        }
+        
+        for group in &groups {
+            for other in &groups {
+                if group != other {
+                    let mut connect: bool = true;
+                    for student in &group.students {
+                        if !other.students.contains(student) {
+                            connect = false;
+                            break;
+                        }
+                    }
+
+                    if connect {
+                        let ind1 = NodeIndex::new(group.id);
+                        let ind2 = NodeIndex::new(other.id);
+                        graph.add_edge(ind1, ind2, other.students.len() - group.students.len());
+                    }
+                }
+            }
+        }
+
+        GroupRelation { graph: graph, groups: groups }
+    }
+
+    pub fn delete_subject(&mut self, subject: Subject) {
+        let subjects = SUBJECTS.lock().unwrap();
+        let groups = &mut self.groups;
+        for i in 0..groups.len() {
+            if groups[i].subjects.contains(&subject) {
+                // This group contains the deleted subject so we remove it
+                groups[i].subjects.remove(&subject);
+
+                // Next we are going to clear the list of students and reevaluate it
+                groups[i].students.clear();
+                let group_subjects: HashSet<Subject> = groups[i].subjects.clone();
+                for other in group_subjects.iter() {
+                    groups[i].students.extend(subjects.get(other).unwrap());
+                }
+
+                let graph = &mut self.graph;
+
+                /*
+                 Reevaluating all edges in the graph pointing towards the modified node.
+                 As the number of students can only decrease, no new ones of this kind will be added.
+                */
+                let mut to_remove: Vec<EdgeIndex> = Vec::new();
+                for other_id in graph.edges_directed(NodeIndex::new(groups[i].id), Incoming) {
+                    let other_ind = other_id.source().index();
+                    // We want to check if all students of the 'other' group are still apart of the 'group' group
+                    for student in groups[other_ind].students.iter() {
+                        if !groups[i].students.contains(student) {
+                            // We found a student who is not apart of the group 'group'. Removing the edge
+                            to_remove.push(other_id.id());
+                        }
+                    }
+                }
+
+                /*
+                 Since deleting during an iteration is not safe, the program does it once the iteration
+                 is over.
+                */
+                for index in to_remove {
+                    graph.remove_edge(index);
+                }
+
+                /*
+                 Since the number of students has decreased, we might be able to create new connections
+                 if one is not established. In order to do that, we iterate through all other groups
+                 which are not connected and perform a reevaluation.
+                */
+                for j in 0..groups.len() {
+                    if i != j {
+                        if graph.find_edge(NodeIndex::new(groups[i].id), NodeIndex::new(groups[j].id)) == None {
+                            // Since we are here, it means that there is no edge connecting those 2 groups
+                            let mut all_apart: bool = true;
+                            for student in &groups[i].students {
+                                if !groups[j].students.contains(&student) {
+                                    all_apart = false;
+                                    break;
+                                }
+                            }
+
+                            if all_apart {
+                                // Creating a new edge
+                                graph.add_edge(NodeIndex::new(groups[i].id), NodeIndex::new(groups[j].id), groups[j].students.len() - groups[i].students.len());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
